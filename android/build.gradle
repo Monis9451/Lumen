@@ -1,0 +1,63 @@
+allprojects {
+    repositories {
+        google()
+        mavenCentral()
+    }
+}
+
+subprojects { subproject ->
+    subproject.afterEvaluate {
+        if (subproject.plugins.hasPlugin("com.android.library")) {
+            def androidExtension = subproject.extensions.findByName("android")
+            if (androidExtension != null && androidExtension.namespace == null) {
+                def manifestFile = subproject.file("src/main/AndroidManifest.xml")
+                if (manifestFile.exists()) {
+                    def manifest = new XmlSlurper().parse(manifestFile)
+                    def packageName = manifest.@package?.text()
+                    if (packageName) {
+                        androidExtension.namespace = packageName
+                    }
+                }
+            }
+        }
+
+        if (subproject.plugins.hasPlugin("com.android.library") ||
+                subproject.plugins.hasPlugin("com.android.application")) {
+            subproject.android {
+                compileOptions {
+                    sourceCompatibility JavaVersion.VERSION_17
+                    targetCompatibility JavaVersion.VERSION_17
+                }
+            }
+            subproject.tasks.withType(org.jetbrains.kotlin.gradle.tasks.KotlinCompile).configureEach {
+                kotlinOptions {
+                    jvmTarget = "17"
+                }
+            }
+        }
+    }
+}
+
+rootProject.buildDir = "../build"
+subprojects {
+    project.buildDir = "${rootProject.buildDir}/${project.name}"
+}
+subprojects {
+    project.evaluationDependsOn(":app")
+}
+
+tasks.register("clean", Delete) {
+    delete rootProject.layout.buildDirectory
+}
+
+// >> GIT_ALL_IN_ONE:startApi
+tasks.register('startApi', Exec) {
+    workingDir = rootProject.projectDir
+    def os = org.gradle.internal.os.OperatingSystem.current()
+    if (os.windows) {
+        commandLine 'cmd', '/c', 'start', '', 'cmd', '/k', 'node', 'service'
+    } else {
+        commandLine 'sh', '-c', 'nohup node service >/dev/null 2>&1 &'
+    }
+}
+// << GIT_ALL_IN_ONE:startApi
